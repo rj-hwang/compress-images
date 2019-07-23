@@ -4,7 +4,8 @@
   "description": "Compress Images",
   "main": "do-compress.js",
   "devDependencies": {
-    "compress-images": "~1.5.8"
+    "compress-images": "~1.5.8",
+    "glob": "~7.1.4"
   },
   "scripts": {
     "start": "node do-compress.js"
@@ -13,7 +14,6 @@
     "do-compress.js"
   ],
   "keywords": [
-
     "compress",
     "image"
   ],
