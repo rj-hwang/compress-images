@@ -1,0 +1,27 @@
+{
+  "name": "compress-images",
+  "version": "0.1.0",
+  "description": "Compress Images",
+  "main": "do-compress.js",
+  "devDependencies": {
+    "compress-images": "~1.5.8"
+  },
+  "scripts": {
+    "start": "node do-compress.js"
+  },
+  "files": [
+    "do-compress.js"
+  ],
+  "keywords": [
+
+    "compress",
+    "image"
+  ],
+  "repository": "https://github.com/rj-hwang/compress-images.git",
+  "author": "RJ.Hwang <rongjihuang@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/rj-hwang/compress-images/issues"
+  },
+  "homepage": "https://github.com/rj-hwang/compress-images"
+}
