@@ -5,7 +5,8 @@
   "main": "do-compress.js",
   "devDependencies": {
     "compress-images": "~1.5.8",
-    "glob": "~7.1.4"
+    "glob": "~7.1.4",
+    "pngquant": "~3.0.0"
   },
   "scripts": {
     "start": "node do-compress.js"

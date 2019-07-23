@@ -1,45 +1,58 @@
 const compress_images = require('compress-images');
 const glob = require("glob")
+const PngQuant = require("pngquant")
+const path = require('path');
+const fs = require('fs');
 
-const fromDir = 'fromDir/**/*.{jpg,JPG,jpeg,JPEG,png,svg,gif}';
-const toDir = 'toDir/';
+const pngQuantArgs = [256, '--quality', '70-100'];
 
-glob(fromDir, function (_error, files) {
-  //console.log("files=" + JSON.stringify(files))
-  let total = files.length;
-  let i = 0;
-  console.log("total=" + total)
+const fromDir = "H:/ip7-bcsystem-backup/bcdata/raw/bcdata/images/201811";
+const toDir = "H:/ip7-bcsystem-backup/bcdata/raw/bcdata-compressed/images/201811";
 
-  // see https://www.npmjs.com/package/compress-images
-  //     https://github.com/semiromid/compress-images#api
-  // compress_images(input, output, option, globoption, enginejpg, enginepng, enginesvg, enginegif, callback)
-  compress_images(
-    fromDir,
-    toDir,
-    {
-      // 设置为 false 避免重复压缩，即如果输出目录已经有同名文件，则忽略该文件继续压缩下一个文件
-      compress_force: false,
-      // 设为 true 统计文件的压缩情况信息，此时 callback 中的第 3 个参数才有值
-      statistic: true,
-      // 是否自动更新 compress_images 为最新版本
-      autoupdate: false,
-      pathLog: "do-compress.log"
-    },
-    false,
-    { jpg: { engine: 'mozjpeg', command: ['-quality', '60'] } },
-    { png: { engine: 'pngquant', command: ['--quality=70-100'] } },
-    { svg: { engine: 'svgo', command: '--multipass' } },
-    { gif: { engine: 'gifsicle', command: ['--colors', '64', '--use-col=web'] } },
-    function (error, completed, s) {
-      if (error) {
-        console.error(error)
-      } else if (s) {
-        //console.log("statistic=" + JSON.stringify(s));
-        console.info("[%s/%s] algorithm=%s, rate=%s\%, from=%s, to=%s", ++i, total, s.algorithm.engine || s.algorithm, s.percent, s.input, s.path_out_new);
-      }
+if (!fs.existsSync(toDir)) {
+  console.warn("Create Directory %s", toDir);
+  fs.mkdirSync(toDir)
+}
 
-      if (completed === true)
-        console.log("Completed: compressed=%s, ignore=%s, total=%s", i, total - i, total);
-    }
-  );
+fs.readdir(fromDir, (err, files) => {
+  let totalFiles = files.length;
+  let pngs = files.filter(f => f.toLowerCase().endsWith(".png"))
+  let totalPngs = pngs.length;
+  console.log("totalPngs=%s, totalFiles=%s", totalPngs, totalFiles);
+
+  // sequence
+  let p = Promise.resolve();
+  let errorFiles = []
+  pngs.forEach((file, index) => {
+    p = p.then(() => compressPng(file, index, totalPngs))
+      .catch(error => {
+        errorFiles.push(file);
+        console.log(error);
+      });
+  });
+  p.then(() => {
+    if (errorFiles.length > 0) console.error("error compress files = %s", errorFiles.join("\r\n"));
+  })
 });
+
+function compressPng(file, index, total) {
+  return new Promise((resolve, reject) => {
+    let target = path.resolve(toDir, file)
+    if (fs.existsSync(target)) {
+      console.info("%s [%s/%s] ignore because target file exists: '%s'", new Date().toTimeString().substr(0, 8), index + 1, total, target);
+      resolve()
+    } else {
+      let source = path.resolve(fromDir, file)
+      //console.info("%s [%s/%s] from=%s, to=%s", new Date().toTimeString().substr(0, 8), index + 1, total, source, target);
+      const input = fs.createReadStream(source);
+      const output = fs.createWriteStream(target);
+      output.on('error', reject);
+      input.on('error', reject);
+      output.on('finish', () => {
+        console.info("%s [%s/%s] from='%s', to='%s'", new Date().toTimeString().substr(0, 8), index + 1, total, source, target);
+        resolve();
+      });
+      input.pipe(new PngQuant(pngQuantArgs)).pipe(output);
+    }
+  });
+}
