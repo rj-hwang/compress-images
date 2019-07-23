@@ -19,7 +19,7 @@ compress_images(
   },
   false,
   { jpg: { engine: 'mozjpeg', command: ['-quality', '60'] } },
-  { png: { engine: 'pngquant', command: ['--quality=20-50'] } },
+    { png: { engine: 'pngquant', command: ['--quality=70-100'] } },
   { svg: { engine: 'svgo', command: '--multipass' } },
   { gif: { engine: 'gifsicle', command: ['--colors', '64', '--use-col=web'] } },
   function (error, completed, statistic) {
