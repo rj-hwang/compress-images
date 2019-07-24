@@ -6,6 +6,7 @@ const fs = require('fs')
 const PromisePool = require('es6-promise-pool')
 
 const ts = () => new Date().toTimeString().substr(0, 8)
+const fileSize = file => fs.statSync(file)["size"]
 const pngQuantArgs = [256, '--quality', '70-100']
 const concurrency = 10
 
@@ -19,49 +20,79 @@ if (!fs.existsSync(toDir)) {
 }
 
 // read all files from source directory
+let errorFiles = []
+let zeroFiles = []
+let preCompressedFiles = []
 fs.readdir(fromDir, (err, files) => {
   let totalFiles = files.length
 
   // filter only png images
   let pngs = files.filter(f => f.toLowerCase().endsWith(".png"))
+  let notPngs = files.filter(f => !(f.toLowerCase().endsWith(".png")))
   let totalPngs = pngs.length
-  console.log("%s totalPngs=%s, totalFiles=%s", ts(), totalPngs, totalFiles)
-  let errorFiles = []
+  console.log("%s totalFiles=%s, totalPngs=%s totalNotPngs=%s", ts(), totalFiles, totalPngs, notPngs.length)
 
   // pool
   const generatePromises = function* () {
     for (let index = 0; index < totalPngs; index++) {
-      yield compressPng(pngs[index], index, totalPngs).catch(error => errorFiles.push(pngs[index]))
+      yield compressPng(pngs[index], index, totalPngs).catch(error => {
+        console.error("%s [%s/%s] Error: file='%s', error='%s'", ts(), index + 1, totalPngs, pngs[index], error)
+        errorFiles.push(pngs[index])
+      })
     }
   }
   const promiseIterator = generatePromises()
   const pool = new PromisePool(promiseIterator, concurrency)
   pool.start().then(() => {
-    console.error("Compress files: success=%s, failed=%s", totalPngs - errorFiles.length, errorFiles.length)
-    if (errorFiles.length > 0) console.error("failed files = %s", errorFiles.join("\r\n  "))
-    if (totalFiles !== totalPngs) console.warn("You need to manual deal with %s files (not png image) in the source directory!", totalFiles - totalPngs)
+    let msg = `Result: compressed=${totalPngs - preCompressedFiles.length - zeroFiles.length - errorFiles.length}`
+      + `, zeroSizeIgnored=${zeroFiles.length}, preCompressedIgnored=${preCompressedFiles.length}`
+      + `, failed=${errorFiles.length}, notPngs=${notPngs.length}`
+    if (zeroFiles.length > 0) msg += `\r\n  zeroFiles:\r\n    ${zeroFiles.join("\r\n    ")}`
+    if (errorFiles.length > 0) msg += `\r\n  errorFiles:\r\n    ${errorFiles.join("\r\n    ")}`
+    if (notPngs.length > 0) msg += `\r\n  notPngs:\r\n    ${notPngs.join("\r\n    ")}`
+    console.warn(msg)
   })
 });
 
 // compress one png image
 function compressPng(png, index, total) {
   return new Promise((resolve, reject) => {
+    let source = path.resolve(fromDir, png)
     let target = path.resolve(toDir, png)
-    if (fs.existsSync(target)) {
-      console.info("%s [%s/%s] ignore because target file exists: '%s'", new Date().toTimeString().substr(0, 8), index + 1, total, target)
+    if (fs.existsSync(target) && fileSize(target) > 0) {
+      //console.info("%s [%s/%s] ignore because target file exists: '%s'", ts(), index + 1, total, target)
+      preCompressedFiles.push(png)
+      resolve()
+    } else if (fileSize(source) === 0) {
+      console.info("%s [%s/%s] ignore because source file size=0: file='%s'", ts(), index + 1, total, source)
+      zeroFiles.push(png)
       resolve()
     } else {
-      let source = path.resolve(fromDir, png)
-      //console.info("%s [%s/%s] from=%s, to=%s", new Date().toTimeString().substr(0, 8), index + 1, total, source, target)
+      console.info("%s [%s/%s] start from=%s, to=%s", ts(), index + 1, total, source, target)
+      // input
       const input = fs.createReadStream(source)
+      input.on('error', e => resolveError(resolve, e, png, index, total))
+
+      // output
       const output = fs.createWriteStream(target)
-      output.on('error', reject)
-      input.on('error', reject)
+      output.on('error', e => resolveError(resolve, e, png, index, total))
       output.on('finish', () => {
-        console.info("%s [%s/%s] from='%s', to='%s'", ts(), index + 1, total, source, target)
+        console.info("%s [%s/%s] end from='%s', to='%s'", ts(), index + 1, total, source, target)
         resolve()
       });
-      input.pipe(new PngQuant(pngQuantArgs)).pipe(output)
+
+      // pngQuqnt
+      const pngQuant = new PngQuant(pngQuantArgs)
+      pngQuant.on('error', e => resolveError(resolve, e, png, index, total))
+
+      // pipe all
+      input.pipe(pngQuant).pipe(output)
     }
   });
+}
+
+const resolveError = (resolve, e, png, index, total) => {
+  errorFiles.push(png)
+  console.error("%s [%s/%s] error: file='%s', error='%s'", ts(), index + 1, total, png, e)
+  resolve()
 }
