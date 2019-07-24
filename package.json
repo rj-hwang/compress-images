@@ -5,6 +5,7 @@
   "main": "do-compress.js",
   "devDependencies": {
     "compress-images": "~1.5.8",
+    "es6-promise-pool": "~2.5.0",
     "glob": "~7.1.4",
     "pngquant": "~3.0.0"
   },
