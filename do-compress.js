@@ -6,6 +6,7 @@ const fs = require('fs')
 
 const ts = () => new Date().toTimeString().substr(0, 8)
 const pngQuantArgs = [256, '--quality', '70-100']
+const batchSize = 10
 
 const fromDir = "H:/ip7-bcsystem-backup/bcdata/raw/bcdata/images/201811"
 const toDir = "H:/ip7-bcsystem-backup/bcdata/raw/bcdata-compressed/images/201811"
@@ -22,16 +23,20 @@ fs.readdir(fromDir, (err, files) => {
   let startTime = new Date().getTime()
   console.log("%s totalPngs=%s, totalFiles=%s", ts(), totalPngs, totalFiles)
 
-  // sequence
+  // batch sequence
   let p = Promise.resolve()
   let errorFiles = []
-  pngs.forEach((file, index) => {
-    p = p.then(() => compressPng(file, index, totalPngs))
-      .catch(error => {
-        errorFiles.push(file);
-        console.info("%s [%s/%s] error='%s'", ts(), index + 1, total, error);
-      });
-  });
+
+  let bacthCount = Math.ceil(totalPngs / batchSize) // round up
+  for (let j = 0; j < bacthCount; j++) {
+    let batch = []
+    for (let i = 0; i < batchSize; i++) {
+      let index = j * batchSize + i
+      if (index >= totalPngs) break
+      batch.push(compressPng(files[index], index, totalPngs))
+    }
+    p = p.then(() => Promise.all(batch))
+  }
 
   p.then(() => {
     if (errorFiles.length > 0) console.error("error compress files = %s", errorFiles.join("\r\n"))
